@@ -1,0 +1,24 @@
+td.appName {
+    text-align: center;
+    background-color: #efefef;
+    font-size: 1.2em;
+}
+
+th {
+    background-color: #cccccc;
+    font-weight: bold;
+}
+
+td.CREATE_COMPLETE {
+    color: green;
+}
+
+td.DELETE_IN_PROGRESS {
+    color: indianred;
+}
+td.CREATE_IN_PROGRESS {
+    color: orange;
+}
+tr.dieSoon {
+    background-color:  #fff3f2;
+}

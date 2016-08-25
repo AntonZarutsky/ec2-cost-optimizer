@@ -1,0 +1,137 @@
+
+# basic information for generating and executing this definition
+SenzaInfo:
+  StackName: ec2-cost-optimizer
+  Parameters:
+    - ImageVersion:
+        Description: "Docker image version of ec2-cost-optimizer."
+    - MintBucket:
+        Description: "Mint Bucket"
+    - ScalyrKey:
+        Description: "ScalyrKey"
+    - SSLCertificateId:
+        Description: "SSLCertificateId"
+    - AppdynamicsApplication:
+        Description: "AppdynamicsApplication"
+
+SenzaComponents:
+
+  # this basic configuration is required for the other components
+  - Configuration:
+      Type: Senza::StupsAutoConfiguration # auto-detect network setup
+  # will create a launch configuration and auto scaling group with scaling triggers
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      InstanceType: t2.small
+      SecurityGroups:
+        - Fn::GetAtt:
+          - AppEc2CostOptimizer
+          - GroupId
+      IamRoles:
+        - Ref: AppEc2CostOptimizerRole
+      ElasticLoadBalancer: AppLoadBalancer
+      AssociatePublicIpAddress: false # change for standalone deployment in default VPC
+      TaupageConfig:
+        application_version: "{{Arguments.ImageVersion}}"
+        runtime: Docker
+        source: "pierone.stups.zalan.do/dz/e2-cost-optimizer:{{Arguments.ImageVersion}}"
+        ports:
+          8080: 8080
+        mint_bucket: "{{Arguments.MintBucket}}"
+        scalyr_account_key: "{{Arguments.ScalyrKey}}"
+        appdynamics_application: "{{Arguments.AppdynamicsApplication}}"
+        environment:
+          APP_CACHE_TIMEOUT: 1
+          STACK_CLEANUP_IF_ONLY_ONE_LEFT: true
+          APP_INCLUDE: ""
+          APP_EXCLUDE: ""
+          STACK_NOTRAFFIC_TTL: 60
+
+  # creates an ELB entry and Route53 domains to this ELB
+  - AppLoadBalancer:
+      Type: Senza::WeightedDnsElasticLoadBalancer
+      HTTPPort: 8080
+      HealthCheckPath: /health
+      SecurityGroups:
+        - Fn::GetAtt:
+          - AppEc2CostOptimizerLb
+          - GroupId
+      SSLCertificateId: "{{Arguments.SSLCertificateId}}"
+      Scheme: internet-facing
+
+# a list of senza components to apply to the definition
+Resources:
+  AppEc2CostOptimizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: z-ec2-cost-optimizer-policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              - "arn:aws:s3:::{{Arguments.MintBucket}}/ec2-cost-optimizer/*"
+          - Effect: Allow
+            Action:
+              - cloudformation:*
+              - elasticloadbalancing:*
+              - route53:*
+              - cloudwatch:*
+              - autoscaling:*
+              - iam:*
+              - ec2:*
+            Resource:
+              - "*"
+  AppEc2CostOptimizer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group for instances"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+  AppEc2CostOptimizerLb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group for instances"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 185.85.220.0/22
+
+
+
+
+
+
+
+
+
+
+
